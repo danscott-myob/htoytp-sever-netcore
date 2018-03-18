@@ -63,7 +63,7 @@ namespace Htoytp.Server.Tests
             await Assert.ThrowsAsync<BadRequestException>(() => Parse("Content-Length:abc"));
         }
         
-        private static Task<IRequestMessage> Parse(string streamContent)
+        private static Task<RequestMessage> Parse(string streamContent)
         {
             IRequestStreamParser parser = new RequestStreamParser();
 

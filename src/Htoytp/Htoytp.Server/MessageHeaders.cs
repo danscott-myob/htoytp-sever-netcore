@@ -2,13 +2,7 @@
 
 namespace Htoytp.Server
 {
-    public interface IMessageHeaders : IReadOnlyDictionary<string, string>
-    {
-        bool HasBody { get; }
-        long ContentLength { get; }
-    }
-
-    internal class MessageHeaders : Dictionary<string, string>, IMessageHeaders
+    public class MessageHeaders : Dictionary<string, string> 
     {
         public bool HasBody => ContainsKey(StandardHeaders.CONTENT_LENGTH);
 

@@ -26,13 +26,13 @@ namespace Htoytp.Server
                 ["TRACE"] = HttpMethod.Trace,
             };
 
-        public Task<IRequestMessage> ParseRequestAsync(Stream requestStream)
+        public Task<RequestMessage> ParseRequestAsync(Stream requestStream)
         {
             var (method, target, version) = ParseRequestLine(requestStream);
 
             var headers = ParseHeaders(requestStream);
 
-            IRequestMessage requestMessage = new RequestMessage
+            var requestMessage = new RequestMessage
             {
                 Method = method,
                 Target = target,
@@ -44,7 +44,7 @@ namespace Htoytp.Server
             return Task.FromResult(requestMessage);
         }
 
-        private static IMessageHeaders ParseHeaders(Stream requestStream)
+        private static MessageHeaders ParseHeaders(Stream requestStream)
         {
             string line = null;
             

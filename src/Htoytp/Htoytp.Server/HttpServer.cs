@@ -1,16 +1,20 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
+using Htoytp.Server.Middleware;
 using static System.Text.Encoding;
 
 namespace Htoytp.Server
 {
     public class HttpServer
     {
-        private IRequestStreamParser _requestStreamParser = new RequestStreamParser();
+        private List<IMiddleware> _middlewares = new List<IMiddleware>();
 
         public HttpServer(int port)
         {
@@ -23,6 +27,12 @@ namespace Htoytp.Server
         {
             TcpListener server = null;
 
+            var requestStreamParser = new RequestStreamParser();
+            
+            var requestProcessor = new DefaultRequestProcessor();
+
+            requestProcessor.AddMiddleware(new EchoMiddleware());
+            
             try
             {
                 server = new TcpListener(IPAddress.Parse("127.0.0.1"), _port);
@@ -39,13 +49,17 @@ namespace Htoytp.Server
 
                         try
                         {
-                            var requestMessage = await _requestStreamParser.ParseRequestAsync(stream);
+                            var requestMessage = await requestStreamParser.ParseRequestAsync(stream);
 
+                            var responseMessage = await requestProcessor.ProcessAsync(requestMessage);
 
-                            if (requestMessage.Target != "/")
-                            {
-                                responseString = "HTTP/1.1 404 NotFound";
-                            }
+                            var responseLines = new List<string>();
+                            
+                            responseLines.Add($"HTTP/1.1 {(int)responseMessage.StatusCode} {responseMessage.StatusCode}");
+                            responseLines.AddRange(responseMessage.Headers.Select(header => $"{header.Key}:{header.Value}"));
+                            responseLines.Add(string.Empty);
+
+                            responseString = string.Join("\r\n", responseLines);
                         }
                         catch (BadRequestException ex)
                         {
@@ -58,7 +72,7 @@ namespace Htoytp.Server
                             responseString =
                                 $"HTTP/1.1 500 InternalServerError\r\nContent-Length:{cl}\r\n\r\n{ex.Message}";
                         }
-
+                        
                         var response = ASCII.GetBytes(responseString);
 
                         await stream.WriteAsync(response, 0, response.Length);

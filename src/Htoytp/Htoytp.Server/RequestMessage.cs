@@ -3,12 +3,12 @@ using System.IO;
 
 namespace Htoytp.Server
 {
-    internal class RequestMessage : IRequestMessage
+    public class RequestMessage
     {
-        public HttpMethod Method { get; internal set; }
-        public string Target { get; internal set; }
-        public string HttpVersion { get; internal set; }
-        public IMessageHeaders Headers { get; internal set; }
-        public Stream Body { get; internal set; }
+        public HttpMethod Method { get; set; }
+        public string Target { get; set; }
+        public string HttpVersion { get; set; }
+        public MessageHeaders Headers { get; set; }
+        public Stream Body { get; set; }
     }
 }

@@ -5,6 +5,6 @@ namespace Htoytp.Server
 {
     public interface IRequestStreamParser
     {
-        Task<IRequestMessage> ParseRequestAsync(Stream requestStream);
+        Task<RequestMessage> ParseRequestAsync(Stream requestStream);
     }
 }
