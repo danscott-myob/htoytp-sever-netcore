@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -26,11 +27,24 @@ namespace Htoytp.Server
                 ["TRACE"] = HttpMethod.Trace,
             };
 
-        public Task<RequestMessage> ParseRequestAsync(Stream requestStream)
+        public Task<(RequestMessage requestMessage, ResponseMessage errorResponse)> ParseRequestAsync(
+            Stream requestStream)
         {
-            var (method, target, version) = ParseRequestLine(requestStream);
+            var (method, target, version, requestLineError) = ParseRequestLine(requestStream);
 
-            var headers = ParseHeaders(requestStream);
+            if (requestLineError != null)
+            {
+                return Task.FromResult<(RequestMessage requestMessage, ResponseMessage errorResponse)>((null,
+                    requestLineError));
+            }
+
+            var (headers, headerError) = ParseHeaders(requestStream);
+
+            if (headerError != null)
+            {
+                return Task.FromResult<(RequestMessage requestMessage, ResponseMessage errorResponse)>((null,
+                    headerError));
+            }
 
             var requestMessage = new RequestMessage
             {
@@ -41,18 +55,24 @@ namespace Htoytp.Server
                 Body = requestStream
             };
 
-            return Task.FromResult(requestMessage);
+            return Task.FromResult<(RequestMessage requestMessage, ResponseMessage errorResponse)>((requestMessage,
+                null));
         }
 
-        private static MessageHeaders ParseHeaders(Stream requestStream)
+        private static (MessageHeaders headers, ResponseMessage error) ParseHeaders(Stream requestStream)
         {
             string line = null;
-            
+
             var headers = new MessageHeaders();
 
             while ((line = ReadLine(requestStream)) != string.Empty)
             {
-                var (key, value) = SplitHeaderLine(line);
+                var (key, value, error) = SplitHeaderLine(line);
+
+                if (error != null)
+                {
+                    return (null, error);
+                }
 
                 if (headers.ContainsKey(key))
                 {
@@ -66,13 +86,16 @@ namespace Htoytp.Server
 
             if (headers.ContainsKey("Content-Length") && long.TryParse(headers["Content-Length"], out var _) == false)
             {
-                throw new BadRequestException($"Invalid Content-Length value: '{headers["Content-Length"]}'");
+                return (
+                    null,
+                    ResponseMessage.BadRequest($"Invalid Content-Length value: '{headers["Content-Length"]}'")
+                );
             }
 
-            return headers;
+            return (headers, null);
         }
 
-        private static (string key, string value) SplitHeaderLine(string line)
+        private static (string key, string value, ResponseMessage error) SplitHeaderLine(string line)
         {
             var parts = line.Split(":");
 
@@ -80,19 +103,35 @@ namespace Htoytp.Server
 
             if (key.Trim() != key)
             {
-                throw new BadRequestException($"Illegal whitespace in header line: '{line}' (no leading/trailing whitespace or obs-fold allowed)");
+                return (null, null, ResponseMessage.BadRequest(
+                    $"Illegal whitespace in header line: '{line}' (no leading/trailing whitespace or obs-fold allowed)"));
             }
 
             var value = parts[1].Trim();
-            
-            return (key, value);
+
+            return (key, value, null);
         }
 
-        private static (HttpMethod method, string target, string version) ParseRequestLine(Stream requestStream)
+        private static (HttpMethod method, string target, string version, ResponseMessage error) ParseRequestLine(
+            Stream requestStream)
         {
             var line = ReadLine(requestStream).Split((char) SP);
 
-            return (ParseHttpMethod(line[0]), ParseRequestTarget(line[1]), ParseHttpVersion(line[2]));
+            var (method, methodError) = ParseHttpMethod(line[0]);
+
+            if (methodError != null)
+            {
+                return (HttpMethod.Unrecognized, null, null, methodError);
+            }
+            
+            var (target, targetError) = ParseRequestTarget(line[1]);
+
+            if (targetError != null)
+            {
+                return (HttpMethod.Unrecognized, null, null, targetError);
+            }
+
+            return (method, target, ParseHttpVersion(line[2]), null);
         }
 
         private static string ParseHttpVersion(string http)
@@ -100,24 +139,21 @@ namespace Htoytp.Server
             return http.Split('/')[1];
         }
 
-        private static string ParseRequestTarget(string target)
+        private static (string target, ResponseMessage error) ParseRequestTarget(string target)
         {
             if (string.IsNullOrEmpty(target))
             {
-                throw new BadRequestException($"Invalid request target");
+                return (null, ResponseMessage.BadRequest($"Invalid request target"));
             }
 
-            return target;
+            return (target, null);
         }
 
-        private static HttpMethod ParseHttpMethod(string method)
+        private static (HttpMethod method, ResponseMessage error) ParseHttpMethod(string method)
         {
-            if (RequestMethodLookup.TryGetValue(method, out var requestMethod))
-            {
-                return requestMethod;
-            }
-
-            throw new BadRequestException($"Unknown request method: '{method}'");
+            return RequestMethodLookup.TryGetValue(method, out var requestMethod)
+                ? (requestMethod, null)
+                : (HttpMethod.Unrecognized, ResponseMessage.BadRequest($"Unknown request method: '{method}'"));
         }
 
         private static string ReadLine(Stream requestStream)

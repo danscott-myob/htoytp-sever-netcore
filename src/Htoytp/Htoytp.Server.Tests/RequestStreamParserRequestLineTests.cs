@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
@@ -19,7 +20,9 @@ namespace Htoytp.Server.Tests
         [InlineData("TRACE", HttpMethod.Trace)]
         public async Task ParseRequest_should_read_request_type_from_request_line(string headerMethod, HttpMethod method)
         {
-            var requestMessage = await Parse($"{headerMethod} / HTTP/1.1\r\n");
+            var (requestMessage, error)  = await Parse($"{headerMethod} / HTTP/1.1\r\n");
+
+            Assert.Null(error);
 
             Assert.Equal(method, requestMessage.Method);
         }
@@ -27,7 +30,10 @@ namespace Htoytp.Server.Tests
         [Fact]
         public async Task ParseRequest_should_throw_BadRequestException_for_unknown_request_methods()
         {
-            await Assert.ThrowsAsync<BadRequestException>(() => Parse("Get / HTTP/1.1\r\n"));
+            var (_, error) = await Parse("Get / HTTP/1.1\r\n");
+            
+            Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+
         }
 
         [Fact]
@@ -35,7 +41,9 @@ namespace Htoytp.Server.Tests
         {
             const string requestTarget = "/whatever/stuff?thing=ok#at";
 
-            var requestMessage = await Parse($"GET {requestTarget} HTTP/1.1");
+            var (requestMessage, error)  = await Parse($"GET {requestTarget} HTTP/1.1");
+
+            Assert.Null(error);
 
             Assert.Equal(requestTarget, requestMessage.Target);
         }
@@ -43,19 +51,23 @@ namespace Htoytp.Server.Tests
         [Fact]
         public async Task ParseRequest_should_throw_BadRequestException_for_invalid_target_urls()
         {
-            await Assert.ThrowsAsync<BadRequestException>(() => Parse("GET  HTTP/1.1"));
+            var (_, error) = await  Parse("GET  HTTP/1.1");
+
+            Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
         }
 
         [Fact]
         public async Task ParseRequest_should_read_http_version()
         {
-            var requestMessage = await Parse("GET /a/b/c HTTP/1.1");
+            var (requestMessage, error)  = await Parse("GET /a/b/c HTTP/1.1");
+            
+            Assert.Null(error);
             
             Assert.Equal("1.1", requestMessage.HttpVersion);
         }
 
 
-        private static Task<RequestMessage> Parse(string streamContent)
+        private static Task<(RequestMessage request, ResponseMessage error)> Parse(string streamContent)
         {
             IRequestStreamParser parser = new RequestStreamParser();
 

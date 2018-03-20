@@ -14,8 +14,6 @@ namespace Htoytp.Server
 {
     public class HttpServer
     {
-        private List<IMiddleware> _middlewares = new List<IMiddleware>();
-
         public HttpServer(int port)
         {
             _port = port;
@@ -33,6 +31,8 @@ namespace Htoytp.Server
 
             requestProcessor.AddMiddleware(new EchoMiddleware());
             
+            var responseWriter = new ResponseWriter();
+            
             try
             {
                 server = new TcpListener(IPAddress.Parse("127.0.0.1"), _port);
@@ -45,33 +45,25 @@ namespace Htoytp.Server
                     {
                         var stream = client.GetStream();
 
-                        var responseString = "HTTP/1.1 200 OK";
+                        ResponseMessage responseMessage;
 
                         try
                         {
-                            var requestMessage = await requestStreamParser.ParseRequestAsync(stream);
+                            var (requestMessage, error) = await requestStreamParser.ParseRequestAsync(stream);
 
-                            var responseMessage = await requestProcessor.ProcessAsync(requestMessage);
-
-                            var responseLines = new List<string>();
-                            
-                            responseLines.Add($"HTTP/1.1 {(int)responseMessage.StatusCode} {responseMessage.StatusCode}");
-                            responseLines.AddRange(responseMessage.Headers.Select(header => $"{header.Key}:{header.Value}"));
-                            responseLines.Add(string.Empty);
-
-                            responseString = string.Join("\r\n", responseLines);
-                        }
-                        catch (BadRequestException ex)
-                        {
-                            var cl = ASCII.GetBytes(ex.Message).Length;
-                            responseString = $"HTTP/1.1 401 BadRequest\r\nContent-Length:{cl}\r\n\r\n{ex.Message}";
+                            responseMessage = error ?? await requestProcessor.ProcessAsync(requestMessage);
                         }
                         catch (Exception ex)
                         {
-                            var cl = ASCII.GetBytes(ex.Message);
-                            responseString =
-                                $"HTTP/1.1 500 InternalServerError\r\nContent-Length:{cl}\r\n\r\n{ex.Message}";
+                            responseMessage = new ResponseMessage
+                            {
+                                Body = ex.Message,
+                                Headers = new MessageHeaders(),
+                                StatusCode = HttpStatusCode.InternalServerError,
+                            };
                         }
+
+                        var responseString = await responseWriter.TranslateResponse(responseMessage);
                         
                         var response = ASCII.GetBytes(responseString);
 
