@@ -24,7 +24,7 @@ namespace Htoytp.Server
                 Headers = new MessageHeaders()
             };
 
-            var baseContext = new MessageContext
+            var context = new MessageContext
             {
                 Request = request,
                 Response = response,
@@ -32,14 +32,16 @@ namespace Htoytp.Server
 
             var middlewareIndex = 0;
 
-            Task<MessageContext> RunMiddleware(MessageContext context)
+            var t = Task.CompletedTask;
+
+            Task RunMiddleware()
                 => middlewareIndex >= _middlewares.Count
-                    ? Task.FromResult(context)
+                    ? Task.CompletedTask
                     : _middlewares[middlewareIndex++].ProcessAsync(context, RunMiddleware);
 
-            var finalContext = await RunMiddleware(baseContext);
+            await RunMiddleware();
 
-            return finalContext.Response;
+            return context.Response;
         }
 
         public IRequestProcessor AddMiddleware(IMiddleware middleware)

@@ -5,6 +5,6 @@ namespace Htoytp.Server
 {
     public interface IMiddleware
     {
-        Task<MessageContext> ProcessAsync(MessageContext context, Func<MessageContext, Task<MessageContext>> nextAsync);
+        Task ProcessAsync(MessageContext context, Func<Task> nextAsync);
     }
 }

@@ -7,12 +7,14 @@ namespace Htoytp.Server.Middleware
 {
     public class EchoMiddleware : IMiddleware
     {
-        public Task<MessageContext> ProcessAsync(MessageContext context,
-            Func<MessageContext, Task<MessageContext>> nextAsync)
+        public Task ProcessAsync(MessageContext context,
+            Func<Task> nextAsync)
         {
             context.Response.Headers = context.Request.Headers;
             
             context.Response.StatusCode = HttpStatusCode.OK;
+
+            context.Response.Body = "{\"thing\":\"what\"}";
 
             return Task.FromResult(context);
         }

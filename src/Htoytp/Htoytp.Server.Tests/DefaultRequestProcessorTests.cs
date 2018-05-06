@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading.Tasks;
@@ -31,22 +32,23 @@ namespace Htoytp.Server.Tests
             var mockMiddleware = new Mock<IMiddleware>();
 
             var requestMessage = new RequestMessage();
-            var fakeResponse = new ResponseMessage();
+
+            var callCount = 0;
 
             mockMiddleware
                 .Setup(x => x.ProcessAsync(It.IsAny<MessageContext>(),
-                    It.IsAny<Func<MessageContext, Task<MessageContext>>>()))
-                .ReturnsAsync(new MessageContext
+                    It.IsAny<Func<Task>>()))
+                .Returns((MessageContext c, Func<Task> n) =>
                 {
-                    Request = new RequestMessage(),
-                    Response = fakeResponse,
+                    callCount++;
+                    return n();
                 });
 
             var processor = new DefaultRequestProcessor().AddMiddleware(mockMiddleware.Object);
 
-            var response = await processor.ProcessAsync(requestMessage);
-
-            Assert.Same(fakeResponse, response);
+            await processor.ProcessAsync(requestMessage);
+            
+            Assert.Equal(1, callCount);
         }
 
         [Fact]
@@ -55,27 +57,32 @@ namespace Htoytp.Server.Tests
             var mockMiddleware1 = new Mock<IMiddleware>();
             var mockMiddleware2 = new Mock<IMiddleware>();
 
-            var mockContext1 = new MessageContext();
-            var mockContext2 = new MessageContext {Response = new ResponseMessage()};
-            
+            var calls = new List<string>();
+
             mockMiddleware1
-                .Setup(x => x.ProcessAsync(It.IsAny<MessageContext>(), It.IsAny<Func<MessageContext, Task<MessageContext>>>()))
-                .Returns((MessageContext c, Func<MessageContext, Task<MessageContext>> n) => n(mockContext1));
+                .Setup(x => x.ProcessAsync(It.IsAny<MessageContext>(), It.IsAny<Func<Task>>()))
+                .Returns((MessageContext c, Func<Task> n) =>
+                {
+                    calls.Add("middleware1");
+                    return n();
+                });
 
             mockMiddleware2
-                .Setup(x => x.ProcessAsync(It.IsAny<MessageContext>(),
-                    It.IsAny<Func<MessageContext, Task<MessageContext>>>())).ReturnsAsync(mockContext2);
+                .Setup(x => x.ProcessAsync(It.IsAny<MessageContext>(), It.IsAny<Func<Task>>()))
+                .Returns((MessageContext c, Func<Task> n) =>
+                {
+                    calls.Add("middleware2");
+                    return n();
+                });
 
             var processor = new DefaultRequestProcessor()
                 .AddMiddleware(mockMiddleware1.Object)
                 .AddMiddleware(mockMiddleware2.Object);
 
-            var response = await processor.ProcessAsync(new RequestMessage());
+            await processor.ProcessAsync(new RequestMessage());
+            
+            Assert.Equal(new [] { "middleware1", "middleware2"}, calls);
 
-            Assert.Same(mockContext2.Response, response);
-
-            mockMiddleware2.Verify(x => x.ProcessAsync(mockContext1,
-                It.IsAny<Func<MessageContext, Task<MessageContext>>>()));
         }
     }
 }

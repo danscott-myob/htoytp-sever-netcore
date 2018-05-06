@@ -19,7 +19,13 @@ namespace Htoytp.Server
             lines.AddRange(response.Headers.Select(kv => $"{kv.Key}:{kv.Value}"));
 
             lines.Add(string.Empty);
-
+            
+            if (response.Body is string s)
+            {
+                lines.Insert(lines.Count - 2, $"Content-Length:{s.Length}");
+                lines.Add(s);
+            }
+            
             return Task.FromResult(string.Join(CRLF, lines));
         }
     }

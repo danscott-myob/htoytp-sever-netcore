@@ -69,6 +69,8 @@ namespace Htoytp.Server
 
                         await stream.WriteAsync(response, 0, response.Length);
 
+                        await stream.FlushAsync();
+
                         client.Close();
                     }
                 }
